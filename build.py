@@ -9,6 +9,7 @@
 手写清单几天就过期。
 """
 
+import json
 import sys
 import time
 import urllib.request
@@ -16,6 +17,10 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 OUTPUT = BASE / "shortvideo.conf"
+# 给 flow_receiver.py 用的机读版：分组 -> 规则列表。
+# conf 里的分组信息只存在于注释行，让下游去正则匹配注释等于把注释当协议，
+# 所以在这里顺手导出结构化副本。
+DOMAINS_OUTPUT = BASE / "shortvideo-domains.json"
 
 UPSTREAM = "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket"
 
@@ -74,6 +79,7 @@ def parse(rule_text):
 
 def main():
     sections = []
+    domains = {}
     total = 0
 
     for label, name in GROUPS.items():
@@ -98,16 +104,24 @@ def main():
             lines.append(f"{rtype},{value},REJECT")
 
         sections.append("\n".join(lines))
+        domains[label] = [f"{t}:{v}" for t, v in sorted(seen)]
         total += len(seen)
 
     if not sections:
         sys.exit("所有上游源都失败，未生成配置")
 
-    content = HEADER.format(ts=time.strftime("%Y-%m-%d %H:%M:%S"))
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    content = HEADER.format(ts=ts)
     content += "\n".join(sections) + FOOTER
 
     OUTPUT.write_text(content, encoding="utf-8")
+    DOMAINS_OUTPUT.write_text(
+        json.dumps({"generated_at": ts, "groups": domains},
+                   ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(f"已生成 {OUTPUT.name}: {total} 条规则")
+    print(f"已生成 {DOMAINS_OUTPUT.name}: {len(domains)} 组")
 
 
 if __name__ == "__main__":

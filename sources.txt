@@ -1,16 +1,10 @@
 # 短视频屏蔽 · 域名清单
 #
 # 用途：供 build.py 生成 Shadowrocket 规则
-# 格式：一行一个纯域名（不带前缀/通配符），# 开头为注释
-#
-# 分级：
-#   [REDIRECT] 整站重定向到 127.0.0.1 —— App 完全打不开，最彻底
-#   [REJECT]   DNS 拒绝解析 —— App 能开，但视频/图片加载不出来
-#
-# 把某一行在 [REDIRECT] 和 [REJECT] 之间移动，就改变了屏蔽强度。
+# 格式：一行一个纯域名，不带前缀/通配符；# 开头为注释
+# 全部按 DOMAIN-SUFFIX 匹配，即输入 douyin.com 会连带拦下所有子域名
 
-[REDIRECT]
-# 抖音（含国内版整条链路）
+# ---- 抖音（整条链路，App 无法加载）----
 douyin.com
 douyinpic.com
 douyinvod.com
@@ -19,24 +13,27 @@ douyinliving.com
 amemv.com
 snssdk.com
 pstatp.com
-# TikTok
+
+# ---- TikTok ----
 tiktok.com
 tiktokv.com
 tiktokcdn.com
 tiktokcdn-us.com
-# 快手
+
+# ---- 快手 ----
 kuaishou.com
 gifshow.com
 kwai.com
 kwaicdn.com
 yximgs.com
 ksapisrv.com
-# 西瓜视频
+
+# ---- 西瓜视频 ----
 ixigua.com
 
-[REJECT]
-# B站：只挡视频 CDN，保留网页/搜索/弹幕
+# ---- B站：只拦视频 CDN，网页/搜索/弹幕照常 ----
 hdslb.com
 bilivideo.com
-# 小红书：只挡图片视频 CDN，保留笔记文字
+
+# ---- 小红书：只拦图片视频 CDN，笔记文字照常 ----
 xhscdn.com

@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """从 sources.txt 生成 Shadowrocket 配置。
 
-不依赖任何代理节点：被屏蔽的域名走 REDIRECT/REJECT，其余流量全部 DIRECT。
+不依赖任何代理节点：被屏蔽的域名走 REJECT，其余流量全部 DIRECT。
 后续有了节点，把文件末尾 FINAL,DIRECT 改成 FINAL,PROXY 即可。
+
+Shadowrocket 只认 Reject / DIRECT / Proxy 三个内置策略名，写错会让整条规则失效。
 """
 
 import sys
@@ -18,8 +20,8 @@ HEADER = """# 短视频屏蔽配置 · Shadowrocket
 # 生成时间: {ts}
 # 规则来源: 本项目 sources.txt
 #
-# 当前模式: 无节点（FINAL 直连）
-# 需要代理时，把文件末尾 FINAL,DIRECT 改为 FINAL,PROXY 并配置节点
+# 当前模式: 无节点（末尾 FINAL 直连）
+# 需要代理时，把末尾 FINAL,DIRECT 改成 FINAL,PROXY 并配置节点
 
 [General]
 ipv6 = false
@@ -35,48 +37,27 @@ FINAL,DIRECT
 """
 
 
-def parse_sources(path):
-    """把 sources.txt 解析成 [(section, domain), ...]，保持文件顺序。"""
-    section = None
-    entries = []
+def parse_domains(path):
+    """读取纯域名清单，跳过空行和注释。"""
+    domains = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if line.startswith("[") and line.endswith("]"):
-            section = line[1:-1].strip().upper()
-            if section not in ("REDIRECT", "REJECT"):
-                raise ValueError(f"未知段落: {line}")
-            continue
-        if section is None:
-            raise ValueError(f"域名出现在任何段落之前: {line}")
-        entries.append((section, line))
-    return entries
-
-
-def render_rules(entries):
-    """REDIRECT 必须排在 REJECT 之前，否则同域名会被 REJECT 抢先匹配。"""
-    order = {"REDIRECT": 0, "REJECT": 1}
-    lines = []
-    current = None
-    for section, domain in sorted(entries, key=lambda e: order[e[0]]):
-        if section != current:
-            current = section
-            lines.append(f"\n# === {section} ===")
-        lines.append(f"DOMAIN-SUFFIX,{domain},{section}")
-    return "\n".join(lines)
+        domains.append(line)
+    return domains
 
 
 def main():
-    entries = parse_sources(SOURCES)
-    if not entries:
+    domains = parse_domains(SOURCES)
+    if not domains:
         sys.exit("sources.txt 里没有任何域名")
 
-    content = HEADER.format(ts=time.strftime("%Y-%m-%d %H:%M:%S"))
-    content += render_rules(entries) + FOOTER
+    rules = "\n".join(f"DOMAIN-SUFFIX,{d},REJECT" for d in domains)
+    content = HEADER.format(ts=time.strftime("%Y-%m-%d %H:%M:%S")) + rules + FOOTER
 
     OUTPUT.write_text(content, encoding="utf-8")
-    print(f"已生成 {OUTPUT.name}: {len(entries)} 条规则")
+    print(f"已生成 {OUTPUT.name}: {len(domains)} 条规则")
 
 
 if __name__ == "__main__":

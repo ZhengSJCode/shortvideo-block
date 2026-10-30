@@ -1,24 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""从 sources.txt 生成 Shadowrocket 配置。
+"""从上游分类规则生成 Shadowrocket 短视频屏蔽配置。
 
-不依赖任何代理节点：被屏蔽的域名走 REJECT，其余流量全部 DIRECT。
-后续有了节点，把文件末尾 FINAL,DIRECT 改成 FINAL,PROXY 即可。
+规则来源：blackmatrix7/ios_rule_script（每日自动更新的分类规则库）
+产物策略统一改为 REJECT，未命中的流量走 FINAL,DIRECT（无节点模式）。
 
-Shadowrocket 只认 Reject / DIRECT / Proxy 三个内置策略名，写错会让整条规则失效。
+为什么不手写域名：上游维护者持续跟进各 App 新增的 CDN 域名，
+手写清单几天就过期。
 """
 
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-SOURCES = BASE / "sources.txt"
 OUTPUT = BASE / "shortvideo.conf"
+
+UPSTREAM = "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket"
+
+# 分组 -> 上游规则名。增删这里即可调整屏蔽范围。
+GROUPS = {
+    "抖音": "DouYin",
+    "快手": "KuaiShou",
+    "TikTok": "TikTok",
+    "B站": "BiliBili",
+    "小红书": "XiaoHongShu",
+}
 
 HEADER = """# 短视频屏蔽配置 · Shadowrocket
 # 生成时间: {ts}
-# 规则来源: 本项目 sources.txt
+# 规则来源: blackmatrix7/ios_rule_script（上游每日更新）
 #
 # 当前模式: 无节点（末尾 FINAL 直连）
 # 需要代理时，把末尾 FINAL,DIRECT 改成 FINAL,PROXY 并配置节点
@@ -36,28 +48,66 @@ FOOTER = """
 FINAL,DIRECT
 """
 
+# 上游使用的规则类型，保留这几种；其余（PROCESS-NAME 等）SR 配置里不通用
+KEPT_TYPES = ("DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "IP-CIDR6")
 
-def parse_domains(path):
-    """读取纯域名清单，跳过空行和注释。"""
-    domains = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
+
+def fetch(name):
+    url = f"{UPSTREAM}/{name}/{name}.list"
+    with urllib.request.urlopen(url, timeout=30) as r:
+        return r.read().decode("utf-8")
+
+
+def parse(rule_text):
+    """提取规则并统一改写为 REJECT；返回 [(类型, 值), ...]。"""
+    out = []
+    for raw in rule_text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
             continue
-        domains.append(line)
-    return domains
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 2 or parts[0] not in KEPT_TYPES:
+            continue
+        out.append((parts[0], parts[1]))
+    return out
 
 
 def main():
-    domains = parse_domains(SOURCES)
-    if not domains:
-        sys.exit("sources.txt 里没有任何域名")
+    sections = []
+    total = 0
 
-    rules = "\n".join(f"DOMAIN-SUFFIX,{d},REJECT" for d in domains)
-    content = HEADER.format(ts=time.strftime("%Y-%m-%d %H:%M:%S")) + rules + FOOTER
+    for label, name in GROUPS.items():
+        try:
+            rules = parse(fetch(name))
+        except Exception as e:
+            # 单个源失败不应让整份配置失效，但必须让失败可见
+            print(f"[警告] {label} 拉取失败: {e}", file=sys.stderr)
+            continue
+
+        if not rules:
+            print(f"[警告] {label} 解析结果为空", file=sys.stderr)
+            continue
+
+        seen = set()
+        lines = [f"\n# === {label}（{len(rules)} 条）==="]
+        for rtype, value in rules:
+            key = (rtype, value)
+            if key in seen:
+                continue
+            seen.add(key)
+            lines.append(f"{rtype},{value},REJECT")
+
+        sections.append("\n".join(lines))
+        total += len(seen)
+
+    if not sections:
+        sys.exit("所有上游源都失败，未生成配置")
+
+    content = HEADER.format(ts=time.strftime("%Y-%m-%d %H:%M:%S"))
+    content += "\n".join(sections) + FOOTER
 
     OUTPUT.write_text(content, encoding="utf-8")
-    print(f"已生成 {OUTPUT.name}: {len(domains)} 条规则")
+    print(f"已生成 {OUTPUT.name}: {total} 条规则")
 
 
 if __name__ == "__main__":

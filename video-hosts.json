@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-10-31 14:51:36",
+  "generated_at": "2026-11-01 02:21:33",
   "hosts": {
     "sns-video-ipctrl-al.xhscdn.com": {
-      "bytes": 385697958,
-      "count": 75,
+      "bytes": 910238281,
+      "count": 219,
       "mimes": [
         "application/octet-stream",
         "audio/mp4",
@@ -12,8 +12,8 @@
       "url": "http://sns-video-ipctrl-al.xhscdn.com/stream/79/110/101/01eae21cb25891c74f037001a185317f82_101.m4a?sign=5ab4f3245ec99bdfe135770be9f1e46c&t=6aea2c13"
     },
     "sns-bak-v1.xhscdn.com": {
-      "bytes": 190344439,
-      "count": 38,
+      "bytes": 250386804,
+      "count": 47,
       "mimes": [
         "application/octet-stream",
         "audio/mp4",
@@ -22,8 +22,8 @@
       "url": "https://sns-bak-v1.xhscdn.com/stream/79/110/3114/01eae21cb25891c74f037001a18611810d_3114.m4s"
     },
     "sns-bak-v6.xhscdn.com": {
-      "bytes": 104440842,
-      "count": 19,
+      "bytes": 135146134,
+      "count": 23,
       "mimes": [
         "application/octet-stream",
         "audio/mp4",
